@@ -217,32 +217,19 @@ marked with `org-taskjuggler-project-tag'"
   header '== %title =='
 
   center -8<-
-    [#Plan Plan] | [#Resource_Allocation Resource Allocation]
+    [#Plan Plan]
     ----
     === Plan ===
     <[report id=\"plan\"]>
-    ----
-    === Resource Allocation ===
-    <[report id=\"resourceGraph\"]>
   ->8-
 }
 
 # A traditional Gantt chart with a project overview.
 taskreport plan \"\" {
   headline \"Project Plan\"
-  columns bsi, name, start, end, effort, chart
+  columns bsi, name, start, end, chart
   loadunit shortauto
   hideresource 1
-}
-
-# A graph showing resource allocation. It identifies whether each
-# resource is under- or over-allocated for.
-resourcereport resourceGraph \"\" {
-  headline \"Resource Allocation Graph\"
-  columns no, name, effort, weekly
-  loadunit shortauto
-  hidetask ~(isleaf() & isleaf_())
-  sorttasks plan.start.up
 }")
   "Default reports for the project.
 These are sensible default reports to give a good out-of-the-box
