@@ -1538,11 +1538,12 @@ shown below.
 			    (cdr (assoc :colnames params))
 			    (cdr (assoc :rownames params)))))
 	 (raw-result (or (cdr (assoc :results params)) ""))
-	 (result-params (append
-			 (split-string (if (stringp raw-result)
-					   raw-result
-					 (eval raw-result)))
-			 (cdr (assoc :result-params params)))))
+	 (result-params (delete-dups
+			 (append
+			  (split-string (if (stringp raw-result)
+					    raw-result
+					  (eval raw-result)))
+			  (cdr (assoc :result-params params))))))
     (append
      (mapcar (lambda (var) (cons :var var)) (car vars-and-names))
      (list
@@ -1556,7 +1557,7 @@ shown below.
 				(t 'value))))
      (cl-remove-if
       (lambda (x) (memq (car x) '(:colname-names :rowname-names :result-params
-						 :result-type :var)))
+					    :result-type :var)))
       params))))
 
 ;; row and column names
@@ -1962,8 +1963,11 @@ to HASH."
 	     ;; Named results expect but none to be found.
 	     (name)
 	     ;; No possible anonymous results at the very end of
-	     ;; buffer.
-	     ((eobp))
+	     ;; buffer or outside CONTEXT parent.
+	     ((eq (point)
+		  (or (org-element-property
+		       :contents-end (org-element-property :parent context))
+		      (point-max))))
 	     ;; Check if next element is an anonymous result below
 	     ;; the current block.
 	     ((let* ((next (org-element-at-point))

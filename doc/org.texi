@@ -6925,7 +6925,7 @@ countdown timer.  With a prefix argument, first reset the relative timer to
 @orgcmd{M-@key{RET},org-insert-heading}
 Once the timer list is started, you can also use @kbd{M-@key{RET}} to insert
 new timer items.
-@orgcmd{C-c C-x \\,org-timer-pause-or-continue}
+@orgcmd{C-c C-x @comma{},org-timer-pause-or-continue}
 Pause the timer, or continue it if it is already paused.
 @orgcmd{C-c C-x _,org-timer-stop}
 Stop the timer.  After this, you can only start a new timer, not continue the
@@ -11498,9 +11498,9 @@ enable a few new block-level elements.  These are created using arbitrary
 #+BEGIN and #+END blocks. For instance:
 
 @example
-#+BEGIN_ASIDE
+#+BEGIN_aside
 Lorem ipsum
-#+END_ASIDE
+#+END_aside
 @end example
 
 Will export to:
@@ -11515,11 +11515,11 @@ While this:
 
 @example
 #+ATTR_HTML: :controls controls :width 350
-#+BEGIN_VIDEO
+#+BEGIN_video
 #+HTML: <source src="movie.mp4" type="video/mp4">
 #+HTML: <source src="movie.ogg" type="video/ogg">
 Your browser does not support the video tag.
-#+END_VIDEO
+#+END_video
 @end example
 
 Becomes:
@@ -12237,10 +12237,9 @@ output file resulting from @LaTeX{} processing.  Org will use an
 TikZ (@url{http://sourceforge.net/projects/pgf/}) images, it will become an
 @code{\input} macro wrapped within a @code{tikzpicture} environment.}.
 
-You can specify specify image width or height with, respectively,
-@code{:width} and @code{:height} attributes.  It is also possible to add any
-other option with the @code{:options} attribute, as shown in the following
-example:
+You can specify image width or height with, respectively, @code{:width} and
+@code{:height} attributes.  It is also possible to add any other option with
+the @code{:options} attribute, as shown in the following example:
 
 @example
 #+ATTR_LATEX: :width 5cm :options angle=90
@@ -12296,13 +12295,33 @@ the @LaTeX{} @code{\includegraphics} macro will be commented out.
 @cindex plain lists, in @LaTeX{} export
 
 Plain lists accept two optional attributes: @code{:environment} and
-@code{:options}.  The first one allows the use of a non-standard environment
-(e.g., @samp{inparaenum}).  The second one specifies additional arguments for
-that environment.
+@code{:options}.  The first can be used to specify the environment.  The
+second can be used to specifies additional arguments to the environment.
+Both attributes are illustrated in the following example:
 
 @example
-#+ATTR_LATEX: :environment compactitem :options [$\circ$]
-- you need ``paralist'' package to reproduce this example.
+#+LATEX_HEADER: \usepackage[inline]@{enumitem@}
+Some ways to say "Hello":
+#+ATTR_LATEX: :environment itemize*
+#+ATTR_LATEX: :options [label=@{@}, itemjoin=@{,@}, itemjoin*=@{, and@}]
+- Hola
+- Bonjour
+- Guten Tag.
+@end example
+
+By default, @LaTeX{} only supports four levels of nesting for lists.  If
+deeper nesting is needed, the @samp{enumitem} @LaTeX{} package can be
+employed, as shown in this example:
+
+@example
+#+LATEX_HEADER: \usepackage@{enumitem@}
+#+LATEX_HEADER: \renewlist@{itemize@}@{itemize@}@{9@}
+#+LATEX_HEADER: \setlist[itemize]@{label=$\circ$@}
+- One
+  - Two
+    - Three
+      - Four
+        - Five
 @end example
 
 @subsubheading Source blocks in @LaTeX{} export
@@ -14505,18 +14524,29 @@ however, override everything.
 @cindex links, publishing
 
 To create a link from one Org file to another, you would use something like
-@samp{[[file:foo.org][The foo]]} or simply @samp{file:foo.org.}
-(@pxref{Hyperlinks}).  When published, this link becomes a link to
-@file{foo.html}.  You can thus interlink the pages of your "org web" project
-and the links will work as expected when you publish them to HTML@.  If you
-also publish the Org source file and want to link to it, use an @code{http:}
-link instead of a @code{file:} link, because @code{file:} links are converted
-to link to the corresponding @file{html} file.
+@samp{[[file:foo.org][The foo]]} or simply @samp{file:foo.org}
+(@pxref{External links}).  When published, this link becomes a link to
+@file{foo.html}.  You can thus interlink the pages of your ``org web''
+project and the links will work as expected when you publish them to HTML.
+If you also publish the Org source file and want to link to it, use an
+@code{http:} link instead of a @code{file:} link, because @code{file:} links
+are converted to link to the corresponding @file{html} file.
 
 You may also link to related files, such as images.  Provided you are careful
 with relative file names, and provided you have also configured Org to upload
 the related files, these links will work too.  See @ref{Complex example}, for
 an example of this usage.
+
+Eventually, links between published documents can contain some search options
+(@pxref{Search options}), which will be resolved to the appropriate location
+in the linked file.  For example, once published to HTML, the following links
+all point to a dedicated anchor in @file{foo.html}.
+
+@example
+[[file:foo.org::*heading]]
+[[file:foo.org::#custom-id]]
+[[file:foo.org::target]]
+@end example
 
 @node Sitemap
 @subsection Generating a sitemap
@@ -15030,13 +15060,16 @@ evaluation from the @kbd{C-c C-c} key binding.}.  This will call the
 its results into the Org mode buffer.
 
 @cindex #+CALL
-It is also possible to evaluate named code blocks from anywhere in an Org
-mode buffer or an Org mode table.  These named code blocks can be located in
-the current Org mode buffer or in the ``Library of Babel'' (@pxref{Library of
-Babel}).  Named code blocks can be evaluated with a separate @code{#+CALL:}
-line or inline within a block of text.  In both cases the result is wrapped
-according to the value of @code{org-babel-inline-result-wrap}, which by
-default is @code{"=%s="} for markup that produces verbatim text.
+It is also possible to evaluate named code blocks from
+anywhere@footnote{Actually, the constructs call_<name>() and src_<lang>@{@}
+are not evaluated when they appear in a keyword line (i.e. lines starting
+with @code{#+KEYWORD:}, @pxref{In-buffer settings}).}  in an Org mode buffer
+or an Org mode table.  These named code blocks can be located in the current
+Org mode buffer or in the ``Library of Babel'' (@pxref{Library of Babel}).
+Named code blocks can be evaluated with a separate @code{#+CALL:} line or
+inline within a block of text.  In both cases the result is wrapped according
+to the value of @code{org-babel-inline-result-wrap}, which by default is
+@code{"=%s="} for markup that produces verbatim text.
 
 The syntax of the @code{#+CALL:} line is
 

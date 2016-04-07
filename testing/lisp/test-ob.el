@@ -1444,16 +1444,17 @@ echo \"$data\"
 		 (org-babel-script-escape "\"foo\\\\\\\"bar\""))))
 
 (ert-deftest test-ob/process-params-no-duplicates ()
-    (should (equal (org-babel-process-params '((:colname-names . 1)
-                                               (:rowname-names . 1)
-                                               (:result-params . 1)
-                                               (:result-type . 1)
-                                               (:var . "\"foo\"")))
-                   '((:var)
-		     (:colname-names . 1)
-		     (:rowname-names . 1)
-		     (:result-params . 1)
-		     (:result-type . value)))))
+  (should
+   (equal (org-babel-process-params '((:colname-names)
+				      (:rowname-names)
+				      (:result-params)
+				      (:result-type)
+				      (:var . "\"foo\"")))
+	  '((:var)
+	    (:colname-names)
+	    (:rowname-names)
+	    (:result-params)
+	    (:result-type . value)))))
 
 (defun org-test-babel-confirm-evaluate (eval-value)
   (org-test-with-temp-text (format "#+begin_src emacs-lisp :eval %s
@@ -1622,6 +1623,10 @@ echo \"$data\"
   ;; Return nil when no result is found.
   (should-not
    (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
+     (org-babel-where-is-src-block-result)))
+  (should-not
+   (org-test-with-temp-text
+       "- item\n  #+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC\n\n"
      (org-babel-where-is-src-block-result)))
   ;; When optional argument INSERT is non-nil, add RESULTS keyword
   ;; whenever no RESULTS can be found.

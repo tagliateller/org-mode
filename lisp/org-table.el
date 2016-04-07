@@ -55,17 +55,20 @@
 
 (declare-function org-export-create-backend "org-export" (&rest rest))
 (declare-function org-export-data-with-backend "org-export" (arg1 arg2 arg3))
-(declare-function org-export-first-sibling-p "org-export" (arg1 arg2))
-(declare-function org-export-get-backend "org-export" (arg1))
+(declare-function org-export-filter-apply-functions "org-export" (&optional filters value info))
+(declare-function org-export-first-sibling-p "org-export" (blob info))
+(declare-function org-export-get-backend "org-export" (name))
 (declare-function org-export-get-environment "org-export" (&optional arg1 arg2 arg3))
-(declare-function org-export-table-has-special-column-p "org-export" (arg1))
-(declare-function org-export-table-row-is-special-p "org-export" (arg1 arg2))
+(declare-function org-export-install-filters "org-export" (info))
+(declare-function org-export-table-has-special-column-p "org-export" (table))
+(declare-function org-export-table-row-is-special-p "org-export" (table-row info))
 
 (declare-function calc-eval "calc" (str &optional separator &rest args))
 
 (defvar orgtbl-mode) ; defined below
 (defvar orgtbl-mode-menu) ; defined when orgtbl mode get initialized
 (defvar constants-unit-system)
+(defvar org-export-filters-alist)
 (defvar org-table-follow-field-mode)
 (defvar sort-fold-case)
 
@@ -795,9 +798,8 @@ When nil, simply write \"#ERROR\" in corrupted fields.")
                    (org-add-props x nil
                      'help-echo
                      (concat
-                      (substitute-command-keys
-                       "Clipped table field, use \\[org-table-edit-field] to \
-edit.  Full value is:\n")
+		      "Clipped table field, use `\\[org-table-edit-field]' to \
+edit.  Full value is:\n"
                       (substring-no-properties x)))
                    (let ((l (length x))
                          (f1 (min fmax
@@ -2136,11 +2138,10 @@ If NLAST is a number, only the NLAST fields will actually be summed."
 			   s diff)
 		     (format "%.0f:%02.0f:%02.0f" h m s))))
 	(kill-new sres)
-	(if (org-called-interactively-p 'interactive)
-	    (message "%s"
-		     (substitute-command-keys
-		      (format "Sum of %d items: %-20s     (\\[yank] will insert result into buffer)"
-			      (length numbers) sres))))
+	(when (org-called-interactively-p 'interactive)
+	    (message "%s" (substitute-command-keys
+			   (format "Sum of %d items: %-20s     \
+\(\\[yank] will insert result into buffer)" (length numbers) sres))))
 	sres))))
 
 (defun org-table-get-number-for-summing (s)
@@ -2633,20 +2634,18 @@ This function assumes the table is already analyzed (i.e., using
 					 suppress-store suppress-analysis)
   "Replace the table field value at the cursor by the result of a calculation.
 
-This function makes use of Dave Gillespie's Calc package, in my view the
-most exciting program ever written for GNU Emacs.  So you need to have Calc
-installed in order to use this function.
-
 In a table, this command replaces the value in the current field with the
 result of a formula.  It also installs the formula as the \"current\" column
 formula, by storing it in a special line below the table.  When called
-with a `C-u' prefix, the current field must be a named field, and the
-formula is installed as valid in only this specific field.
+with a `\\[universal-argument]' prefix the formula is installed as a \
+field formula.
 
-When called with two `C-u' prefixes, insert the active equation
-for the field back into the current field, so that it can be
-edited there.  This is useful in order to use \\[org-table-show-reference]
-to check the referenced fields.
+When called with a `\\[universal-argument] \\[universal-argument]' prefix, \
+insert the active equation for the field
+back into the current field, so that it can be edited there.  This is \
+useful
+in order to use \\<org-table-fedit-map>`\\[org-table-show-reference]' to \
+check the referenced fields.
 
 When called, the command first prompts for a formula, which is read in
 the minibuffer.  Previously entered formulas are available through the
@@ -2655,7 +2654,7 @@ These stored formulas are adapted correctly when moving, inserting, or
 deleting columns with the corresponding commands.
 
 The formula can be any algebraic expression understood by the Calc package.
-For details, see the Org-mode manual.
+For details, see the Org mode manual.
 
 This function can also be called from Lisp programs and offers
 additional arguments: EQUATION can be the formula to apply.  If this
@@ -2665,7 +2664,8 @@ SUPPRESS-CONST suppresses the interpretation of constants in the
 formula, assuming that this has been done already outside the function.
 SUPPRESS-STORE means the formula should not be stored, either because
 it is already stored, or because it is a modified equation that should
-not overwrite the stored one."
+not overwrite the stored one.  SUPPRESS-ANALYSIS prevents any call to
+`org-table-analyze'."
   (interactive "P")
   (org-table-check-inside-data-field)
   (or suppress-analysis (org-table-analyze))
@@ -2730,9 +2730,10 @@ not overwrite the stored one."
 	      (setq fmt (replace-match "" t t fmt)))
 	    (unless (string-match "\\S-" fmt)
 	      (setq fmt nil))))
-      (if (and (not suppress-const) org-table-formula-use-constants)
-	  (setq formula (org-table-formula-substitute-names formula)))
+      (when (and (not suppress-const) org-table-formula-use-constants)
+	(setq formula (org-table-formula-substitute-names formula)))
       (setq orig (or (get-text-property 1 :orig-formula formula) "?"))
+      (setq formula (org-table-formula-handle-first/last-rc formula))
       (while (> ndown 0)
 	(setq fields (org-split-string
 		      (org-trim
@@ -3120,10 +3121,13 @@ T1 is nil, always messages."
 ;;;###autoload
 (defun org-table-recalculate (&optional all noalign)
   "Recalculate the current table line by applying all stored formulas.
+
 With prefix arg ALL, do this for all lines in the table.
-With the prefix argument ALL is `(16)' \
-\(a double \\[universal-prefix] \\[universal-prefix] prefix), or if
-it is the symbol `iterate', recompute the table until it no longer changes.
+
+When called with a `\\[universal-argument] \\[universal-argument]' prefix, or \
+if ALL is the symbol `iterate',
+recompute the table until it no longer changes.
+
 If NOALIGN is not nil, do not re-align the table after the computations
 are done.  This is typically used internally to save time, if it is
 known that the table will be realigned a little later anyway."
@@ -3591,8 +3595,7 @@ Parameters get priority."
       (when (eq org-table-use-standard-references t)
 	(org-table-fedit-toggle-ref-type))
       (org-goto-line startline)
-      (message
-       (substitute-command-keys "\\<org-mode-map>\
+      (message "%s" (substitute-command-keys "\\<org-mode-map>\
 Edit formulas, finish with `\\[org-ctrl-c-ctrl-c]' or `\\[org-edit-special]'.  \
 See menu for more commands.")))))
 
@@ -4845,10 +4848,21 @@ This may be either a string or a function of two arguments:
 		((consp e)
 		 (princ "| ") (dolist (c e) (princ c) (princ " |"))
 		 (princ "\n")))))
+      ;; Add back-end specific filters, but not user-defined ones.  In
+      ;; particular, make sure to call parse-tree filters on the
+      ;; table.
+      (setq info
+	    (let ((org-export-filters-alist nil))
+	      (org-export-install-filters
+	       (org-combine-plists
+		(org-export-get-environment backend nil params)
+		`(:back-end ,(org-export-get-backend backend))))))
       (setq data
-	    (org-element-map (org-element-parse-buffer) 'table
-	      #'identity nil t))
-      (setq info (org-export-get-environment backend nil params)))
+	    (org-export-filter-apply-functions
+	     (plist-get info :filter-parse-tree)
+	     (org-element-map (org-element-parse-buffer) 'table
+	       #'identity nil t)
+	     info)))
     (when (and backend (symbolp backend) (not (org-export-get-backend backend)))
       (user-error "Unknown :backend value"))
     (when (or (not backend) (plist-get info :raw)) (require 'ox-org))
@@ -4891,9 +4905,9 @@ This may be either a string or a function of two arguments:
 	    (push datum ignore))))
       (setq info (plist-put info :ignore-list ignore)))
     ;; We use a low-level mechanism to export DATA so as to skip all
-    ;; usual pre-processing and post-processing, i.e., hooks, filters,
-    ;; Babel code evaluation, include keywords and macro expansion,
-    ;; and filters.
+    ;; usual pre-processing and post-processing, i.e., hooks, Babel
+    ;; code evaluation, include keywords and macro expansion.  Only
+    ;; back-end specific filters are retained.
     (let ((output (org-export-data-with-backend data custom-backend info)))
       ;; Remove final newline.
       (if (org-string-nw-p output) (substring-no-properties output 0 -1) ""))))
